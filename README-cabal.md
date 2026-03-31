@@ -14,7 +14,7 @@ The ``build.hs`` script manages the setup of the environment and execution of sp
 
 Development can be performed as with any other cabal project but this script will need to be used to generate the WASM/JS outputs.
 
-There are multiple cabal project file files depending on if the build is done with the WASM GHC compiler or just GHC to support development with ``cabal run``. This is to allow for a different cabal freeze file the two build types.
+There are multiple cabal project file files depending on if the build is done with the WASM GHC compiler or just GHC to support development with a non WASM cabal build.
 
 ## Prerequisites
 
@@ -56,3 +56,7 @@ Runs ``npx http-server public`` to serve the ``public/`` directory
 ### browsermode
 
 Starts an interactive session as per the Nix version's Makefile to run with ghci and the browser. See the README for more on what can be done in Browser mode 🔥
+
+## freeze
+
+Convenience target to generate a cabal freeze against the specified GHC version to build against known package versions for that GHC version. Current only uses the major.minor e.g. ``wasm-9.12.cabal.project.freeze``. The project file ``wasm-9.12.cabal.project`` must exist. 

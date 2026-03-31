@@ -51,7 +51,10 @@ import Turtle as T
     sh,
     shells,
     single,
-    stdin, strict,
+    stdin,
+    strict,
+    testfile,
+    unsafeTextToLine,
   )
 
 type Version = Text
@@ -62,6 +65,7 @@ data Command
   | Build
   | Serve
   | BrowserMode
+  | Freeze
 
 data Args = Args
   { ghcVersion :: Version,
@@ -76,6 +80,7 @@ commands =
         <> command "build" (info (pure Build) (progDesc "Build WASM output and package to public/"))
         <> command "serve" (info (pure Serve) (progDesc "Serve the application from ./public using http-server"))
         <> command "browsermode" (info (pure BrowserMode) (progDesc "Run the application in GHCi and the browser"))
+        <> command "freeze" (info (pure Freeze) (progDesc "Freeze the application dependencies file for the build ghc version"))
     )
 
 scriptArgs :: Parser Args
@@ -118,6 +123,18 @@ main = do
     Clean -> do
       rmtree "public"
       shells "cabal clean" mempty
+    Freeze -> sh $ do
+      exists <- testfile ("wasm-" <> toString (ghcVersion rgs) <> ".cabal.project")
+      if exists
+        then do
+          inshellIgnore ". ~/.ghc-wasm/env" mempty
+          wasmCabalInteractive
+            (ghcVersion rgs)
+            [ "freeze",
+              "--project-file=wasm-" <> ghcVersion rgs <> ".cabal.project"
+            ]
+        else
+          echo ("No existing project file to freeze, create wasm-" <> unsafeTextToLine (ghcVersion rgs) <> ".cabal.project first")
 
 install :: Args -> IO ()
 install rgs = do
@@ -132,18 +149,19 @@ inshellIgnore txt = void . strict . inshell txt
 
 build :: (MonadIO io, IsString a, IsString t) => ([a] -> Shell Line) -> (t -> Text) -> io ()
 build wcab wghc = sh $ do
-    _ <- strict $ wcab ["build"]
-    mktree "public"
-    cptree "static" "public"
-    wasmlocm <- T.fold (wcab ["list-bin", "app"]) Fold.last
-    case wasmlocm of
-      Nothing -> T.die "cabal list-bin app failed to return a result"
-      Just wasmloc -> do
-        let wasmName = lineToText wasmloc
-        echo ("Building using wasm " <> wasmloc)
-        libdir <- single (inshell (wghc "--print-libdir") mempty)
-        cp (toString wasmName) "public/app.wasm"
-        void $ inshell (lineToText libdir <> "/post-link.mjs --input " <> wasmName <> " --output public/ghc_wasm_jsffi.js") mempty
+  inshellIgnore ". ~/.ghc-wasm/env" mempty
+  _ <- strict $ wcab ["build"]
+  mktree "public"
+  cptree "static" "public"
+  wasmlocm <- T.fold (wcab ["list-bin", "app"]) Fold.last
+  case wasmlocm of
+    Nothing -> T.die "cabal list-bin app failed to return a result"
+    Just wasmloc -> do
+      let wasmName = lineToText wasmloc
+      echo ("Building using wasm " <> wasmloc)
+      libdir <- single (inshell (wghc "--print-libdir") mempty)
+      cp (toString wasmName) "public/app.wasm"
+      inshellIgnore (". ~/.ghc-wasm/env" <> " && " <> lineToText libdir <> "/post-link.mjs -i " <> wasmName <> " -o public/ghc_wasm_jsffi.js") mempty
 
 wasmCabalInProc :: Text -> [Text] -> Shell Line
 wasmCabalInProc version rest =
@@ -165,7 +183,7 @@ wasmCabalParams version rest =
     "--with-hc-pkg=wasm32-wasi-ghc-pkg-" <> version,
     "--with-hsc2hs=wasm32-wasi-hsc2hs-" <> version,
     "--with-haddock=wasm32-wasi-haddock-" <> version,
-    "--project-file=wasm.cabal.project"
+    "--project-file=wasm-" <> version <> ".cabal.project"
   ]
     <> rest
 
@@ -176,3 +194,4 @@ exportNodePath :: Shell ()
 exportNodePath = do
   npmroot <- inshell "npm root -g" mempty
   export "NODE_PATH" (lineToText npmroot)
+  inshellIgnore ". ~/.ghc-wasm/env" mempty
