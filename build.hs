@@ -46,7 +46,6 @@ import Turtle as T
     inshell,
     lineToText,
     mktree,
-    procs,
     rmtree,
     sh,
     shells,
@@ -56,6 +55,7 @@ import Turtle as T
     testfile,
     unsafeTextToLine,
   )
+import qualified Data.Text as T
 
 type Version = Text
 
@@ -112,11 +112,12 @@ main = do
     Serve -> shells "npx http-server public" mempty
     BrowserMode -> sh $ do
       exportNodePath
+      inshellIgnore ". ~/.ghc-wasm/env" mempty
       wasmCabalInteractive
         (ghcVersion rgs)
         [ "repl",
           "-finteractive",
-          "--repl-options=-fghci-browser -fghci-browser-host=127.0.0.1",
+          "--repl-options='-fghci-browser -fghci-browser-host=127.0.0.1'",
           "--enable-shared",
           "app"
         ]
@@ -170,12 +171,14 @@ wasmCabalInProc version rest =
     (wasmCabalParams version rest)
     mempty
 
-wasmCabalInteractive :: (MonadIO io) => Text -> [Text] -> io ()
+wasmCabalInteractive :: MonadIO io => Text -> [Text] -> io ()
 wasmCabalInteractive version rest =
-  procs
-    "cabal"
-    (wasmCabalParams version rest)
+  shells
+    (". ~/.ghc-wasm/env" <> " && cabal " <> asCommandLine (wasmCabalParams version rest))
     T.stdin
+
+asCommandLine :: [Text] -> Text
+asCommandLine = T.intercalate " "
 
 wasmCabalParams :: (Semigroup a, IsString a) => a -> [a] -> [a]
 wasmCabalParams version rest =
@@ -194,4 +197,3 @@ exportNodePath :: Shell ()
 exportNodePath = do
   npmroot <- inshell "npm root -g" mempty
   export "NODE_PATH" (lineToText npmroot)
-  inshellIgnore ". ~/.ghc-wasm/env" mempty
