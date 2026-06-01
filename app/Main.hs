@@ -10,7 +10,6 @@ import           Miso.Html.Element as H
 import           Miso.Html.Event as E
 import           Miso.Html.Property as P
 import           Miso.Lens
-import           Miso.String
 import qualified Miso.CSS as CSS
 import           Miso.CSS (StyleSheet)
 -----------------------------------------------------------------------------
@@ -38,7 +37,7 @@ app = (component 0 updateModel viewModel)
   { styles = [ Sheet sheet ]
   }
 -----------------------------------------------------------------------------
-updateModel :: Action -> Effect parent Int Action
+updateModel :: Action -> Effect parent props Int Action
 updateModel = \case
   AddOne ->
     this += 1
@@ -47,8 +46,8 @@ updateModel = \case
   SayHelloWorld ->
     io_ (consoleLog "Hello World!")
 -----------------------------------------------------------------------------
-viewModel :: Int -> View Int Action
-viewModel x = H.div_
+viewModel :: props -> Int -> View Int Action
+viewModel _ x = H.div_
   [ P.class_ "counter-container" ]
   [ H.h1_
     [ P.class_ "counter-title"
